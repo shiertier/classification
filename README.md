@@ -1,38 +1,36 @@
-# classification
+# 图像分类
 
-## Installation
+## 安装
 
 ```shell
 pip install -r requirements.txt
 pip install -r requirements-onnx.txt
 ```
 
-## Let's Training the Classifier
+## 开始训练分类器
 
-Save this to `train.py`
+将以下内容保存到 `train.py` 文件中。
 
 ```python
 import math
-
 from ditk import logging
 from torchvision import transforms
-
 from classification.dataset import LocalImageDataset, dataset_split, WrappedImageDataset, RangeRandomCrop, prob_greyscale
 from classification.train import train_simple
 
 logging.try_init_root(logging.INFO)
 
-# Meta information for task
-LABELS = ['monochrome', 'normal']  # labels of each class
-WEIGHTS = [math.e ** 2, 1.0]  # weight of each class
+# 任务元信息
+LABELS = ['monochrome', 'normal']  # 每个类别的标签
+WEIGHTS = [math.e ** 2, 1.0]  # 每个类别的权重
 assert len(LABELS) == len(WEIGHTS), \
-    f'Labels and weights should have the same length, but {len(LABELS)}(labels) and {len(WEIGHTS)}(weights) found.'
+    f'标签和权重长度应该相同，但发现{len(LABELS)}(标签)和{len(WEIGHTS)}(权重)。'
 
-# dataset directory (use your own, like the following)
+# 数据集目录（使用你自己的，如下所示）
 # <dataset_dir>
 # ├── class1
 # │   ├── image1.jpg
-# │   └── image2.png  # all readable format by PIL is okay
+# │   └── image2.png  # 所有PIL可读取的格式都可以
 # ├── class2
 # │   ├── image3.jpg
 # │   └── image4.jpg
@@ -41,114 +39,112 @@ assert len(LABELS) == len(WEIGHTS), \
 #     └── image6.jpg
 DATASET_DIR = '/my/dataset/directory'
 
-# data augment and preprocessing for train dataset
+# 训练数据集的数据增强和预处理
 TRANSFORM_TRAIN = transforms.Compose([
-    # data augmentation
-    # prob_greyscale(0.5),  # use this line when color is not important
+    # 数据增强
+    # 如果颜色不重要，使用此行
+    # prob_greyscale(0.5),  
     transforms.Resize((500, 500)),
     RangeRandomCrop((400, 500), padding=0, pad_if_needed=True, padding_mode='reflect'),
     transforms.RandomRotation((-45, 45)),
     transforms.RandomHorizontalFlip(),
     transforms.ColorJitter(0.10, 0.10, 0.05, 0.03),
 
-    # preprocessing (recommended to be the same as tests)
+    # 预处理（建议与测试相同）
     transforms.Resize((384, 384)),
     transforms.ToTensor(),
     transforms.Normalize([0.5], [0.5])
 ])
 
-# preprocess the test dataset
+# 测试数据集的预处理
 TRANSFORM_TEST = transforms.Compose([
     transforms.Resize((384, 384)),
     transforms.ToTensor(),
     transforms.Normalize([0.5], [0.5]),
 ])
-# dataset for visualization (it may be slow when there are too many classes)
-# if you do not need this, just comment it
+# 数据集可视化（当类太多时可能会很慢）
+# 如果你不需要这个，只需注释掉
 TRANSFORM_VISUAL = transforms.Compose([
     transforms.Resize((384, 384)),
     transforms.ToTensor(),
 ])
 
-# prepare the dataset
-# disable cache when training on large dataset
+# 准备数据集
+# 在大型数据集上训练时禁用缓存
 dataset = LocalImageDataset(DATASET_DIR, LABELS, no_cache=True)
 test_ratio = 0.2
 train_dataset, test_dataset = dataset_split(dataset, [1 - test_ratio, test_ratio])
 train_dataset = WrappedImageDataset(train_dataset, TRANSFORM_TRAIN)
 test_dataset = WrappedImageDataset(test_dataset, TRANSFORM_TEST, TRANSFORM_VISUAL)
-# if you do not need visualization, just use this
+# 如果你不需要可视化，只需使用这个
 # test_dataset = WrappedImageDataset(test_dataset, TRANSFORM_TEST)
 
-# Let's GO!
+# 开始训练！
 if __name__ == '__main__':
     train_simple(
-        # work directory for training task
-        # resume will be auto-performed after interruption
+        # 训练任务的工作目录
+        # 中断后将会自动恢复
         workdir='runs/demo_exp',
 
-        # all model in timm is usable, 
-        # see supported models with timm.list_models() or see the performance table at 
+        # timm中所有模型都是可用的，
+        # 使用timm.list_models()查看支持的模型，或者在
         # https://github.com/huggingface/pytorch-image-models/blob/main/results/results-imagenet.csv
-        # Recommendation:
-        # 1. use caformer_s36.sail_in22k_ft_in1k_384 for training
-        # 2. use mobilenetv3_large_100 for distillation
+        # 查看性能表格
+        # 推荐：
+        # 1. 训练时使用 caformer_s36.sail_in22k_ft_in1k_384
+        # 2. 精馏时使用 mobilenetv3_large_100
         model_name='caformer_s36.sail_in22k_ft_in1k_384',
 
-        # labels and weights, all 1 when weights not given
+        # 标签和权重，未给出权重时全部为1
         labels=LABELS,
         loss_weight=WEIGHTS,
 
-        # datasets
+        # 数据集
         train_dataset=train_dataset,
         test_dataset=test_dataset,
 
-        # train settings, pretrained model will be used
+        # 训练设置，将使用预训练模型
         max_epochs=100,
         num_workers=8,
         eval_epoch=1,
         key_metric='accuracy',
-        loss='focal',  # use `sce` when the dataset is not guaranteed to be cleaned
+        loss='focal',  # 当数据集不保证干净时使用 `sce`
         seed=0,
-        drop_path_rate=0.4,  # use this when training on caformer
+        drop_path_rate=0.4,  # 训练caformer时使用这个
 
-        # hyper-parameters
+        # 超参数
         batch_size=16,
-        learning_rate=1e-5,  # 1e-5 recommended for caformer's fine-tuning
+        learning_rate=1e-5,  # caformer微调推荐使用1e-5
         weight_decay=1e-3,
     )
 ```
 
-And run
+接下来运行
 
 ```
 accelerate launch train.py
 ```
 
-## Distillate the Model
+## 蒸馏模型
 
-Save this to `dist.py`
+将以下内容保存到 `dist.py` 文件中
 
 ```python
 from ditk import logging
 from torchvision import transforms
-
 from classification.dataset import LocalImageDataset, dataset_split, WrappedImageDataset, RangeRandomCrop, prob_greyscale
 from classification.train import train_distillation
-
 logging.try_init_root(logging.INFO)
-
-# Meta information for task
-LABELS = ['monochrome', 'normal']  # labels of each class
-WEIGHTS = [1.0, 1.0]  # weight of each class
+# 任务元信息
+LABELS = ['monochrome', 'normal']  # 每个类别的标签
+WEIGHTS = [1.0, 1.0]  # 每个类别的权重
 assert len(LABELS) == len(WEIGHTS), \
-    f'Labels and weights should have the same length, but {len(LABELS)}(labels) and {len(WEIGHTS)}(weights) found.'
-
-# dataset directory (use your own, like the following)
+    f'标签和权重长度应该相同，但发现{len(LABELS)}(标签)和{len(WEIGHTS)}(权重)。'
+# 数据集目录（使用你自己的，如下所示）
 # <dataset_dir>
 # ├── class1
 # │   ├── image1.jpg
-# │   └── image2.png  # all readable format by PIL is okay
+# │   └── image2.png  # 所有PIL可读取的格式都可以
 # ├── class2
 # │   ├── image3.jpg
 # │   └── image4.jpg
@@ -156,105 +152,94 @@ assert len(LABELS) == len(WEIGHTS), \
 #     ├── image5.jpg
 #     └── image6.jpg
 DATASET_DIR = '/my/dataset/directory'
-
-# data augment and preprocessing for train dataset
+# 训练数据集的数据增强和预处理
 TRANSFORM_TRAIN = transforms.Compose([
-    # data augmentation
-    # prob_greyscale(0.5),  # use this line when color is not important
+    # 数据增强
+    # 如果颜色不重要，使用此行
+    # prob_greyscale(0.5),  
     transforms.Resize((500, 500)),
     RangeRandomCrop((400, 500), padding=0, pad_if_needed=True, padding_mode='reflect'),
     transforms.RandomRotation((-45, 45)),
     transforms.RandomHorizontalFlip(),
     transforms.ColorJitter(0.10, 0.10, 0.05, 0.03),
-
-    # preprocessing (recommended to be the same as tests)
+    # 预处理（建议与测试相同）
     transforms.Resize((384, 384)),
     transforms.ToTensor(),
     transforms.Normalize([0.5], [0.5])
 ])
-
-# preprocess the test dataset
+# 测试数据集的预处理
 TRANSFORM_TEST = transforms.Compose([
     transforms.Resize((384, 384)),
     transforms.ToTensor(),
     transforms.Normalize([0.5], [0.5]),
 ])
-# dataset for visualization (it may be slow when there are too many classes)
-# if you do not need this, just comment it
+# 数据集可视化（当类太多时可能会很慢）
+# 如果你不需要这个，只需注释掉
 TRANSFORM_VISUAL = transforms.Compose([
     transforms.Resize((384, 384)),
     transforms.ToTensor(),
 ])
-
-# prepare the dataset
-# disable cache when training on large dataset
+# 准备数据集
+# 在大型数据集上训练时禁用缓存
 dataset = LocalImageDataset(DATASET_DIR, LABELS, no_cache=True)
 test_ratio = 0.2
 train_dataset, test_dataset = dataset_split(dataset, [1 - test_ratio, test_ratio])
 train_dataset = WrappedImageDataset(train_dataset, TRANSFORM_TRAIN)
 test_dataset = WrappedImageDataset(test_dataset, TRANSFORM_TEST, TRANSFORM_VISUAL)
-# if you do not need visualization, just use this
+# 如果你不需要可视化，只需使用这个
 # test_dataset = WrappedImageDataset(test_dataset, TRANSFORM_TEST)
-
-# Let's GO!
+# 开始训练！
 if __name__ == '__main__':
     train_distillation(
-        # work directory for student model of distillation task
-        # resume will be auto-performed after interruption
+        # 蒸馏任务的学生模型的工作目录
+        # 中断后将会自动恢复
         workdir='runs/demo_exp_dist',
-
-        # all model in timm is usable, 
-        # see supported models with timm.list_models() or see the performance table at 
+        # timm中所有模型都是可用的，
+        # 使用timm.list_models()查看支持的模型，或者在
         # https://github.com/huggingface/pytorch-image-models/blob/main/results/results-imagenet.csv
-        # Recommendation:
-        # 1. use caformer_s36.sail_in22k_ft_in1k_384 for training
-        # 2. use mobilenetv3_large_100 for distillation
+        # 查看性能表格
+        # 推荐：
+        # 1. 训练时使用 caformer_s36.sail_in22k_ft_in1k_384
+        # 2. 精馏时使用 mobilenetv3_large_100
         model_name='mobilenetv3_large_100',
-
-        # distillation from the teacher model in runs/demo_exp
+        # 从runs/demo_exp中的教师模型进行蒸馏
         teacher_workdir='runs/demo_exp',
-
-        # labels and weights, all 1 when weights not given
+        # 标签和权重，未给出权重时全部为1
         labels=LABELS,
         loss_weight=WEIGHTS,
-
-        # datasets
+        # 数据集
         train_dataset=train_dataset,
         test_dataset=test_dataset,
-
-        # train settings, pretrained model will be used
+        # 训练设置，将使用预训练模型
         max_epochs=500,
         num_workers=8,
         eval_epoch=5,
         key_metric='accuracy',
-        loss='focal',  # use `sce` when the dataset is not guaranteed to be cleaned
+        loss='focal',  # 当数据集不保证干净时使用 `sce`
         seed=0,
-        # drop_path_rate=0.4,  # use this when training on caformer
-
-        # distillation settings
+        # drop_path_rate=0.4,  # 训练caformer时使用这个
+        # 蒸馏设置
         temperature=7.0,
         alpha=0.3,
-
-        # hyper-parameters
+        # 超参数
         batch_size=16,
-        learning_rate=1e-4,  # 1e-5 recommended for caformer's fine-tuning
+        learning_rate=1e-4,  # caformer微调推荐使用
         weight_decay=1e-3,
     )
 
 ```
 
-And then run
+接下来运行
 
 ```shell
 accelerate launch dist.py
 ```
 
-## Export onnx model
+## 导出 ONNX 模型
 
-### From checkpoint
+### 从检查点导出
 
-Attention that this export is only supported for ckpt dumped with `classficiation` module, for it contains extra
-information except state dict of the network.
+请注意，此导出仅支持使用 `classficiation` 模块转储的检查点，因为它包含除网络状态字典之外的额外信息。
 
 ```shell
 python -m classification.onnx export --help
@@ -263,62 +248,59 @@ python -m classification.onnx export --help
 ```text
 Usage: python -m classification.onnx export [OPTIONS]
 
-  Export existing checkpoint to onnx
+  将检查点导出为onnx
 
 Options:
-  -i, --input FILE       Input checkpoint to export.  [required]
-  -s, --imgsize INTEGER  Image size for input.  [default: 384]
-  -D, --non-dynamic      Do not export model with dynamic input height and
-                         width.
-  -V, --verbose          Show verbose information.
-  -o, --output FILE      Output file of onnx model
-  -h, --help             Show this message and exit.
+  -i, --input FILE       要导出的输入检查点。 [必填]
+  -s, --imgsize INTEGER  输入图像大小。 [默认值: 384]
+  -D, --non-dynamic      不要导出具有动态输入高度和宽度的模型。
+  -V, --verbose          显示详细信息。
+  -o, --output FILE      ONNX 模型的输出文件
+  -h, --help             显示此帮助信息并退出。
 ```
 
-## From training work directory
+## 从训练工作目录导出
 
 ```shell
 python -m classification.onnx dump -w runs/demo_exp
 ```
 
-Then the `runs/demo_exp/ckpts/best.ckpt` will be dumped to `runs/demo_exp/onnxs/best.onnx`
+然后，`runs/demo_exp/ckpts/best.ckpt` 将转储为 `runs/demo_exp/onnxs/best.onnx`
 
-Here is the help information
+以下是帮助信息：
 
 ```text
 Usage: python -m classification.onnx dump [OPTIONS]
 
-  Dump onnx model from existing work directory.
+  从现有的工作目录中转储 ONNX 模型。
 
 Options:
-  -w, --workdir DIRECTORY  Work directory of the training.  [required]
-  -s, --imgsize INTEGER    Image size for input.  [default: 384]
-  -D, --non-dynamic        Do not export model with dynamic input height and
-                           width.
-  -V, --verbose            Show verbose information.
-  -h, --help               Show this message and exit.
+  -w, --workdir DIRECTORY  训练的工作目录。 [必填]
+  -s, --imgsize INTEGER    输入图像大小。 [默认值: 384]
+  -D, --non-dynamic        不要导出具有动态输入高度和宽度的模型。
+  -V, --verbose            显示详细信息。
+  -h, --help               显示此帮助信息并退出。
 ```
 
-## Publish Trained Models
+## 发布训练好的模型
 
-Before start, set the `HF_TOKEN` variable to your huggingface token
+在开始之前，请将 HF_TOKEN 变量设置为您的 `HF_TOKEN` 令牌
 
 ```shell
-# on Linux
+# 在 Linux 上执行
 export HF_TOKEN=xxxxxxxx
 ```
 
-Publish trained models (including ckpt, onnx, metrics data and figures) to huggingface
-repository `your/huggingface_repo`
+将训练好的模型（包括 ckpt、onnx、度量数据和图表）发布到 Hugging Face 仓库 `your/huggingface_repo`
 
 ```shell
 python -m classification.publish huggingface -w runs/your_model_dir -n name_of_the_model -r your/huggingface_repo
 ```
 
-List all the models in given repository `your/huggingface_repo`, which can be used in README
+列出给定仓库 `your/huggingface_repo` 中的所有模型，可用于 README
 
 ```shell
 python -m classification.list huggingface -r your/huggingface_repo
 ```
 
-An example model repository: https://huggingface.co/deepghs/anime_style_ages
+一个示例模型仓库：https://huggingface.co/deepghs/anime_style_ages
