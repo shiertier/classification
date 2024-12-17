@@ -62,8 +62,10 @@ def train_simple(
         # mixed_precision=self.cfgs.mixed_precision,
         step_scheduler_with_optimizer=False,
     )
-
-    model_args = {**_PRESET_KWARGS, 'img_size': img_size, **model_args}
+    if model_name == 'mobilenetv3_large_100':
+        model_args = {**_PRESET_KWARGS, **model_args}
+    else:
+        model_args = {**_PRESET_KWARGS, 'img_size': img_size, **model_args}
     model, _model_name, _labels, _model_args = _load_last_ckpt(workdir)
     if model:
         logging.info(f'Load previous ckpt from work directory {workdir!r}.')
