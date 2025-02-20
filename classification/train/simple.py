@@ -64,6 +64,8 @@ def train_simple(
     )
     if model_name == 'mobilenetv3_large_100':
         model_args = {**_PRESET_KWARGS, **model_args}
+    elif '448' in model_name:
+        model_args = {**_PRESET_KWARGS, 'img_size': 448, **model_args}
     else:
         model_args = {**_PRESET_KWARGS, 'img_size': img_size, **model_args}
     model, _model_name, _labels, _model_args = _load_last_ckpt(workdir)
